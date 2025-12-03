@@ -1,8 +1,3 @@
-Cool — thanks Buddy, I checked out your Medium post. Based on it, here’s a polished **README.md** draft for GitHub, reflecting your Snort-based home lab project. Feel free to modify any part to suit your style or add actual screenshots once you have them.
-
----
-
-```markdown
 # Snort IDS Home Lab 🛡️
 
 ## Overview  
