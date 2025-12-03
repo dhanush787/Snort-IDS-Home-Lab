@@ -1,149 +1,112 @@
-# Snort Nmap Detection Lab
-
-> Goal: run Snort on an Ubuntu VM (Defender) and detect Nmap scans and ICMP from a Kali attacker VM. 
+Cool — thanks Buddy, I checked out your Medium post. Based on it, here’s a polished **README.md** draft for GitHub, reflecting your Snort-based home lab project. Feel free to modify any part to suit your style or add actual screenshots once you have them.
 
 ---
 
-## Prerequisites
+```markdown
+# Snort IDS Home Lab 🛡️
 
-* Virtualization: VirtualBox / VMware or physical machines on the same network
-* If using Vagrant: Vagrant installed
-* 2 VMs (or machines) on the same network:
+## Overview  
+This repository documents my journey building a fully functional home lab using **Snort** — for intrusion detection (IDS) and intrusion prevention (IPS). The lab is designed for hands-on learning: you can simulate attacks, observe network traffic, and see real-time alerts.
 
-  * **Ubuntu Server** (Defender) — runs Snort
-  * **Kali Linux** (Attacker) — runs Nmap / ping
-* Sufficient privileges to install packages and run packet capture (sudo)
+I built this lab to climb deeper into network security and SOC-style defensive work — turning theory into practice.  
 
----
+## Why Snort?  
+- Snort is open-source & free — ideal for a personal lab with no licensing constraints. :contentReference[oaicite:1]{index=1}  
+- It supports both IDS (detection) and IPS (prevention) modes. :contentReference[oaicite:2]{index=2}  
+- Handles multiple protocols (TCP, UDP, HTTP, FTP, DNS, etc.), enabling diverse attack simulations. :contentReference[oaicite:3]{index=3}  
+- Allows custom rule writing — perfect for learning and testing scanning & exploitation detection. :contentReference[oaicite:4]{index=4}  
 
-## Quick setup (manual steps)
+## Lab Topology  
 
-### 1. Update & install Snort (Ubuntu Defender)
+```
+
+<img width="720" height="367" alt="image" src="https://github.com/user-attachments/assets/6af50525-2c37-43bd-8cf1-4e9ea3431632" />
+
+
+````
+
+- **Ubuntu Server** — runs Snort, monitors traffic between attacker and victim. :contentReference[oaicite:5]{index=5}  
+- **Attacker (Kali)** — launches scanning & exploitation against victim. :contentReference[oaicite:6]{index=6}  
+- **Victim (Metasploitable)** — hosts vulnerable services (HTTP, FTP, SSH, etc.) for testing. :contentReference[oaicite:7]{index=7}  
+
+*All VMs are isolated in a host-only / NAT network — no risk of external interference.* :contentReference[oaicite:8]{index=8}  
+
+## Requirements  
+
+- **Hardware:** ≥ 8 GB RAM, ≥ 30 GB storage :contentReference[oaicite:9]{index=9}  
+- **Software / VMs:**  
+  - Ubuntu Server (for Snort)  
+  - Kali Linux (attacker)  
+  - Metasploitable (victim)  
+  - VirtualBox (or any similar hypervisor) :contentReference[oaicite:10]{index=10}  
+
+## Setup & Installation  
 
 ```bash
-sudo apt update && sudo apt upgrade -y
-# Install Snort (simple apt method)
-sudo DEBIAN_FRONTEND=noninteractive apt install -y snort
+# Update system  
+sudo apt update -y && sudo apt upgrade -y  
+
+# Install Snort  
+sudo apt-get install snort -y  
+````
+
+During installation, specify the network interface Snort should listen on (e.g. `enp0s8`). ([Medium][1])
+
+### Configuration
+
+1. Create a backup of the original config:
+
+   ```bash
+   sudo cp /etc/snort/snort.conf /etc/snort/test_snort.conf
+   ```
+2. Edit `test_snort.conf` — configure `HOME_NET` to your lab subnet (e.g. `192.168.56.0/24`). ([Medium][1])
+3. Point Snort to use custom rules: ensure `local.rules` is included. ([Medium][1])
+4. Disable or comment out default/community rules (optional — useful for custom learning). ([Medium][1])
+5. Test configuration:
+
+   ```bash
+   sudo snort -T -c /etc/snort/test_snort.conf
+   ```
+
+## Example Custom Rules
+
+```text
+# Detect ICMP ping sweep (Nmap -sn)
+alert icmp any any -> 192.168.56.0/24 any (msg:"Nmap ICMP Ping Sweep Detected"; icode:0; itype:8; sid:1000002; rev:1;)
+
+# Detect Nmap ACK scan
+alert tcp any any -> 192.168.56.0/24 any (msg:"Nmap ACK Scan Detected"; flags:A; sid:1000003; rev:1;)
+
+# Detect TCP SYN scan
+alert tcp any any -> 192.168.56.0/24 any (msg:"TCP SYN Scan Detected"; flags:S; threshold:type both, track by_src, count 20, seconds 60; sid:1000004; rev:1;)
 ```
 
-During the apt install interactive prompt, it will ask for the network interface — enter the primary interface (or configure later in `/etc/snort/snort.conf`).
+These rules can detect basic scanning techniques such as ping sweeps, SYN scans, ACK scans, etc. ([Medium][1])
 
-If you prefer building Snort from source for the latest version, replace the apt steps with source build steps.
-
-### 2. Put the interface into promiscuous mode (if needed)
-
-Replace `ens33` with your interface name (find with `ip a`).
+## Running the Lab
 
 ```bash
-sudo ip link set ens33 promisc on
+sudo snort -c /etc/snort/test_snort.conf -i <interface> -A console -l /var/log/snort
 ```
 
-### 3. Verify or set `HOME_NET` in Snort config
-
-Open `/etc/snort/snort.conf` and set a `HOME_NET` that matches your lab network. Examples:
-
-```conf
-# Single host:
-ipvar HOME_NET 192.168.1.100
-
-# Or whole subnet:
-ipvar HOME_NET 192.168.1.0/24
-```
-
-> Note: In `test_snort.conf` included here we set `var HOME_NET` to a lab subnet for convenience.
-
-### 4. Add local detection rules
-
-Create or edit `/etc/snort/rules/local.rules` (or update your repo copy `snort/local.rules` and copy into the VM). Example contents:
-
-```snort
-# Detect ICMP ping (ping sweep / pings)
-alert icmp any any -> $HOME_NET any (msg:"ICMP Packet Detected"; sid:1000001; rev:1;)
-
-# Detect Nmap SYN scan (flags:S)
-alert tcp any any -> $HOME_NET any (msg:"Nmap SYN Scan Detected"; flags:S; sid:1000002; rev:1;)
-
-# Detect Nmap ACK scan (flags:A)
-alert tcp any any -> $HOME_NET any (msg:"Nmap ACK Scan Detected"; flags:A; sid:1000003; rev:1;)
-```
-
-Ensure `snort.conf` (or `test_snort.conf`) includes:
-
-```conf
-var RULE_PATH /etc/snort/rules
-include $RULE_PATH/local.rules
-```
-
-### 5. Test Snort configuration
+From your attacker VM (Kali), run scan commands:
 
 ```bash
-sudo snort -T -c /etc/snort/snort.conf
-# or for the repo test file:
-sudo snort -T -c /etc/snort/test_snort.conf
+nmap -sn -PE <victim_IP>        # ICMP ping sweep  
+nmap -sS -Pn <victim_IP>        # SYN scan  
+nmap -sA -Pn <victim_IP>        # ACK scan  
 ```
 
-You should see messages indicating parsing succeeded and no fatal errors.
+Watch Snort alerts in console or log files — confirm detection. ([Medium][1])
 
-### 6. Run Snort (console / sniffer mode)
+## What I Learned & Use Cases
 
-Find the correct interface (e.g. `ip a`), then:
+* How to configure Snort from scratch, including custom network settings.
+* Writing custom detection rules and understanding rule syntax.
+* Detecting network reconnaissance and scanning by attackers.
+* Building a realistic lab environment for SOC-style training.
 
-```bash
-sudo snort -i ens33 -A console -c /etc/snort/snort.conf -l /var/log/snort
-```
-
-* `-i ens33` — capture on your network interface
-* `-A console` — print alerts to console
-* `-l /var/log/snort` — log directory
-
----
-
-## Attack simulation (from Kali attacker)
-
-SSH into or open a terminal in your Kali VM and run one (or all) of the following against the Defender IP:
-
-```bash
-# Replace 192.168.1.100 with your Defender (Ubuntu) IP
-
-# SYN stealth scan
-nmap -sS 192.168.1.100
-
-# ACK scan
-nmap -sA 192.168.1.100
-
-# Aggressive scan (service detection + version)
-nmap -A 192.168.1.100
-
-# Ping/ICMP test
-ping -c 4 192.168.1.100
-```
-
----
-
-## Expected Snort console output (example)
-
-If Snort and rules are configured correctly, alerts will appear similar to:
-
-```
-[**] [1:1000002:1] Nmap SYN Scan Detected [**]
-[Priority: 0] 
-11/07-12:34:56.789012 192.168.2.200:12345 -> 192.168.1.100:80
-TCP TTL:64 TOS:0x0 ID:54321 IpLen:20 DgmLen:40
-***S
-```
-
-And for ICMP:
-
-```
-[**] [1:1000001:1] ICMP Packet Detected [**]
-```
-
-Additionally, logs are written to `/var/log/snort`.
+This lab helped me turn theory into practical skills — a great first step toward real-world network defence.
 
 
----
-
-
-## License
-
-This README and accompanying repo files are released under the MIT License. See `LICENSE` for details.
+[1]: https://medium.com/%40dhanushin787/building-my-snort-ids-home-lab-a4a425adc767 "Building My Snort IDS Home Lab. I often hear experts say that… | by Dhanush Dhayalan | Nov, 2025 | Medium"
