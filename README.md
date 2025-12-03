@@ -13,12 +13,9 @@ I built this lab to climb deeper into network security and SOC-style defensive w
 
 ## Lab Topology  
 
-```
 
 <img width="720" height="367" alt="image" src="https://github.com/user-attachments/assets/6af50525-2c37-43bd-8cf1-4e9ea3431632" />
 
-
-````
 
 - **Ubuntu Server** — runs Snort, monitors traffic between attacker and victim. :contentReference[oaicite:5]{index=5}  
 - **Attacker (Kali)** — launches scanning & exploitation against victim. :contentReference[oaicite:6]{index=6}  
